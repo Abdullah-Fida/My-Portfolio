@@ -6,6 +6,9 @@ Built with React 19, TypeScript, Vite, Three.js / React Three Fiber, GSAP (Scrol
 
 ## Highlights
 
+- **One 3D world behind the whole page.** A single fixed WebGL canvas; the camera follows the page scroll 1:1, so 3D pieces stay pinned to their sections (project ring, wireframe orb, workflow pipeline, gyroscope, shape cluster) while floating objects at other depths give real parallax.
+- **Loads in one go.** A minimal boot screen waits for fonts, decoded images, uploaded textures and compiled shaders, then the page and 3D reveal together (7 s safety timeout).
+
 - **3D hero**: a ring of curved screens showing real captures of live projects, rendered with a custom GLSL shader (rounded corners, scroll-reactive bend + RGB shift, hover glow, depth fade). Drag to spin, click a screen to open the case study.
 - **Two more live 3D scenes**: a workflow pipeline with data particles flowing between stations (Systems), and a cluster of glossy shapes that follow the pointer (Contact). Each renders only while on screen.
 - **Case-study list** with scroll-driven image reveals.

@@ -1,5 +1,5 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
-import type { MouseEvent, ReactNode, RefObject } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SplitText } from 'gsap/SplitText';
@@ -16,10 +16,8 @@ import activity from './data/github-activity.json';
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
-const heroSceneImport = import('./HeroScene'); // start downloading the 3D code immediately
-const HeroScene = lazy(() => heroSceneImport);
-const FlowScene = lazy(() => import('./Scenes').then(m => ({ default: m.FlowScene })));
-const ShapesScene = lazy(() => import('./Scenes').then(m => ({ default: m.ShapesScene })));
+const worldImport = import('./World'); // start downloading the 3D code immediately
+const World = lazy(() => worldImport);
 const reducedMotion = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const workIds = ['the-tcg-plug', 'wovenaa', 'pressvane', 'ahsantechlink', 'zonyx', 'ikonnect'];
@@ -39,24 +37,9 @@ class SceneBoundary extends Component<{ children: ReactNode; fallback?: ReactNod
   render() { return this.state.failed ? (this.props.fallback ?? null) : this.props.children; }
 }
 
-/** Mount a 3D scene once it's near the viewport; run its render loop only while visible. */
-function useInView(ref: RefObject<HTMLElement | null>, margin = '200px') {
-  const [state, setState] = useState({ seen: false, visible: false });
-  useEffect(() => {
-    if (!ref.current) return;
-    const io = new IntersectionObserver(([e]) => setState(s => ({ seen: s.seen || e.isIntersecting, visible: e.isIntersecting })), { rootMargin: margin });
-    io.observe(ref.current);
-    return () => io.disconnect();
-  }, [ref, margin]);
-  return state;
-}
-
-function SceneSlot({ className, children }: { className: string; children: (active: boolean) => ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const { seen, visible } = useInView(ref);
-  return <div className={className} ref={ref} aria-hidden="true">
-    {seen && <SceneBoundary><Suspense fallback={null}>{children(visible)}</Suspense></SceneBoundary>}
-  </div>;
+function Failed({ onFail }: { onFail: () => void }) {
+  useEffect(() => { onFail(); }, [onFail]);
+  return null;
 }
 
 function HeroCaption({ onOpen }: { onOpen: (id: string) => void }) {
@@ -90,7 +73,7 @@ function SectionHead({ label, title, text, id }: { label: string; title: string;
 
 export default function App() {
   const [sceneReady, setSceneReady] = useState(false);
-  const [heroActive, setHeroActive] = useState(true);
+  const [worldFailed, setWorldFailed] = useState(false);
   const [selected, setSelected] = useState<Project | null>(null);
   const [contact, setContact] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -99,6 +82,20 @@ export default function App() {
   const root = useRef<HTMLDivElement>(null);
 
   const onSceneReady = useCallback(() => setSceneReady(true), []);
+  const onWorldFail = useCallback(() => { setWorldFailed(true); setSceneReady(true); }, []);
+  const [fontsReady, setFontsReady] = useState(false);
+  const [imagesReady, setImagesReady] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const booted = (fontsReady && sceneReady && imagesReady) || timedOut;
+
+  useEffect(() => {
+    (document.fonts?.ready ?? Promise.resolve()).then(() => setFontsReady(true));
+    const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('main img'));
+    Promise.all(imgs.map(img => img.decode().catch(() => undefined))).then(() => setImagesReady(true));
+    const t = setTimeout(() => setTimedOut(true), 7000);
+    return () => clearTimeout(t);
+  }, []);
+  const bootProgress = [fontsReady, imagesReady, sceneReady].filter(Boolean).length / 3;
   const closeProject = useCallback(() => setSelected(null), []);
   const closeContact = useCallback(() => setContact(false), []);
   const openProject = useCallback((id: string) => { const p = projects.find(x => x.id === id); if (p) setSelected(p); }, []);
@@ -116,17 +113,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const locked = !!selected || contact || menuOpen;
+    const locked = !!selected || contact || menuOpen || !booted;
     if (locked) lenis.current?.stop(); else lenis.current?.start();
     document.documentElement.classList.toggle('is-locked', locked);
-  }, [selected, contact, menuOpen]);
-
-  useEffect(() => {
-    if (!hero.current) return;
-    const io = new IntersectionObserver(([e]) => setHeroActive(e.isIntersecting), { rootMargin: '100px' });
-    io.observe(hero.current);
-    return () => io.disconnect();
-  }, []);
+  }, [selected, contact, menuOpen, booted]);
 
   // Pointer position for every scene, plus drag-to-spin on the hero ring.
   useEffect(() => {
@@ -151,16 +141,19 @@ export default function App() {
     return () => { window.removeEventListener('pointermove', move); el?.removeEventListener('pointerdown', start); window.removeEventListener('pointerup', end); };
   }, []);
 
-  // Scroll choreography.
+  // Scroll choreography: runs once everything has loaded, so the page reveals in one go.
   useEffect(() => {
-    if (!root.current) return;
+    if (!root.current || !booted) return;
+    document.documentElement.classList.remove('is-booting');
+    scene.revealed = true;
     const motion = !reducedMotion;
     const ctx = gsap.context(() => {
       const heading = SplitText.create('.hero h1', { type: 'lines', mask: 'lines', linesClass: 'line' });
       gsap.timeline({ defaults: { ease: 'power4.out' }, delay: 0.15 })
         .from(heading.lines, { yPercent: motion ? 105 : 0, opacity: motion ? 1 : 0, duration: 1.3, stagger: 0.1 })
         .from('.hero [data-intro]', { y: motion ? 16 : 0, opacity: 0, duration: 1.1, stagger: 0.07 }, '-=1')
-        .from('.site-header', { opacity: 0, duration: 1 }, 0);
+        .from('.site-header', { opacity: 0, duration: 1 }, 0)
+        .from('.world', { opacity: 0, scale: motion ? 1.04 : 1, duration: 1.6, ease: 'power2.out' }, 0);
 
       ScrollTrigger.create({ trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true, onUpdate: self => { scene.progress = self.progress; } });
       if (motion) gsap.to('.hero-copy', { y: -60, opacity: 0, ease: 'none', scrollTrigger: { trigger: '.hero', start: '30% top', end: '90% top', scrub: true } });
@@ -198,7 +191,7 @@ export default function App() {
     }, root);
     document.fonts?.ready.then(() => ScrollTrigger.refresh());
     return () => ctx.revert();
-  }, []);
+  }, [booted]);
 
   const navLinks = [['#work', 'Work'], ['#systems', 'Systems'], ['#services', 'Services'], ['#about', 'About']];
   const scrollTo = (hash: string) => {
@@ -212,6 +205,17 @@ export default function App() {
 
   return <div className="app" ref={root}>
     <a className="skip-link" href="#work">Skip to projects</a>
+    <div className={`boot ${booted ? 'is-done' : ''}`} aria-hidden="true">
+      <span>Abdullah Fida</span>
+      <i><b style={{ transform: `scaleX(${booted ? 1 : Math.max(0.08, bootProgress)})` }} /></i>
+    </div>
+    <div className="world" aria-hidden="true">
+      <SceneBoundary fallback={<Failed onFail={onWorldFail} />}>
+        <Suspense fallback={null}>
+          <World onOpen={openProject} onReady={onSceneReady} paused={!!selected || contact} motion={!reducedMotion} />
+        </Suspense>
+      </SceneBoundary>
+    </div>
 
     <header className="site-header">
       <a className="logo" href="#top" onClick={go('#top')} aria-label="Abdullah Fida, back to top">Abdullah Fida</a>
@@ -229,13 +233,7 @@ export default function App() {
     <main id="top">
       {/* Hero */}
       <section className="hero" ref={hero} aria-labelledby="hero-title">
-        <div className={`hero-canvas ${sceneReady ? 'is-ready' : ''}`}>
-          <SceneBoundary fallback={<div className="hero-fallback"><img src="/assets/previews/tcg-nl-desktop.jpg" alt="" /></div>}>
-            <Suspense fallback={null}>
-              <HeroScene onOpen={openProject} onReady={onSceneReady} active={heroActive && !selected && !contact} motion={!reducedMotion} />
-            </Suspense>
-          </SceneBoundary>
-        </div>
+        {worldFailed && <div className="hero-fallback"><img src="/assets/previews/tcg-nl-desktop.jpg" alt="" /></div>}
         <div className="hero-copy">
           <div className="hero-main">
             <p className="hero-name" data-intro>Abdullah Fida, Shopify and full-stack developer</p>
@@ -272,7 +270,7 @@ export default function App() {
             const preview = projectPreviews(p.id)[0];
             return <article className={`case ${i === 0 ? 'case-featured' : ''}`} key={p.id}>
               <button className="case-media" onClick={() => setSelected(p)} aria-label={`Open ${p.title}`}>
-                <img src={preview?.desktop || p.image} alt={`${p.title} homepage`} loading="lazy" width={1280} height={800} />
+                <img src={preview?.desktop || p.image} alt={`${p.title} homepage`} decoding="async" width={1280} height={800} />
                 {i === 0 && <span className="case-badge"><strong>€300k</strong> monthly sales</span>}
               </button>
               <div className="case-info" data-reveal>
@@ -294,7 +292,6 @@ export default function App() {
       <section className="systems" id="systems" aria-labelledby="systems-title">
         <SectionHead id="systems-title" label="Systems and automation" title="Software that runs on its own" text="These projects don't have a public homepage. Each one has a short walkthrough you can try." />
         <div className="flow">
-          {!reducedMotion && <SceneSlot className="flow-canvas">{active => <FlowScene active={active} />}</SceneSlot>}
           <ol className="flow-steps"><li>Trigger</li><li>Agent</li><li>Published</li></ol>
         </div>
         <div className="systems-grid">
@@ -366,7 +363,7 @@ export default function App() {
             <a className="btn btn-line-light" href={profile.linkedin} target="_blank" rel="noreferrer"><Linkedin size={16} />LinkedIn</a>
           </div>
         </div>
-        {!reducedMotion && <SceneSlot className="contact-canvas">{active => <ShapesScene active={active} />}</SceneSlot>}
+        <div className="contact-canvas" aria-hidden="true" />
       </section>
     </main>
 

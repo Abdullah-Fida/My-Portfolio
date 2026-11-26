@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -142,6 +142,7 @@ function Panel({ index, image, project, label, geometry, onOpen, reflect = false
   const hover = useRef(0);
   const target = useRef(0);
   const focus = useRef(0);
+  const start = useRef<number | null>(null);
   const angle = index * STEP;
 
   const uniforms = useMemo(() => {
@@ -177,8 +178,10 @@ function Panel({ index, image, project, label, geometry, onOpen, reflect = false
     u.uFacing.value = facing;
     u.uVelocity.value = sceneState.smoothVelocity;
     u.uTime.value = t;
-    u.uIntro.value = THREE.MathUtils.smootherstep(t, index * 0.06, 0.9 + index * 0.06);
-    u.uFar.value = state.camera.position.z + RADIUS;
+    if (sceneState.revealed && start.current === null) start.current = t;
+    const since = start.current === null ? 0 : t - start.current;
+    u.uIntro.value = THREE.MathUtils.smootherstep(since, 0.15 + index * 0.07, 1.25 + index * 0.07);
+    u.uFar.value = state.camera.position.z + RADIUS * sceneState.ringScale;
     // The front screen steps slightly out of the ring.
     if (mesh.current) mesh.current.position.z = RADIUS + focus.current * 0.45 + hover.current * 0.1;
   });
@@ -209,11 +212,12 @@ function Panel({ index, image, project, label, geometry, onOpen, reflect = false
         onClick={reflect ? undefined : e => {
           e.stopPropagation();
           if (sceneState.dragDistance > 6) return;
+          if ((e.nativeEvent.target as HTMLElement | null)?.closest?.('a, button, dialog, input, textarea, select')) return;
           out();
           onOpen(project);
         }}
       >
-        <shaderMaterial ref={material} vertexShader={vertex} fragmentShader={fragment} uniforms={uniforms} side={THREE.DoubleSide} transparent depthWrite={!reflect} />
+        <shaderMaterial ref={material} vertexShader={vertex} fragmentShader={fragment} uniforms={uniforms} side={THREE.DoubleSide} forceSinglePass transparent depthWrite={!reflect} />
       </mesh>
     </group>
   );
@@ -239,13 +243,11 @@ function FloorGlow() {
   </mesh>;
 }
 
-function Ring({ onOpen, motion }: { onOpen: (id: string) => void; motion: boolean }) {
+export function Ring({ onOpen, motion }: { onOpen: (id: string) => void; motion: boolean }) {
   const group = useRef<THREE.Group>(null);
   const spin = useRef<THREE.Group>(null);
   const mirror = useRef<THREE.Group>(null);
   const geometry = useBentPlane();
-  const { camera, size } = useThree();
-  const narrow = size.width < 760;
   const timer = useRef(0);
   const wasDragging = useRef(false);
   const lastFocus = useRef(-1);
@@ -253,8 +255,6 @@ function Ring({ onOpen, motion }: { onOpen: (id: string) => void; motion: boolea
   useFrame((state, delta) => {
     const s = sceneState;
     const t = state.clock.elapsedTime;
-    s.smoothVelocity = THREE.MathUtils.damp(s.smoothVelocity, THREE.MathUtils.clamp(s.velocity / 50, -1, 1), 4, delta);
-
     // Carousel: dwell on a project, then glide to the next. Drag and buttons override.
     if (s.dragging) {
       s.target += s.dragDelta * 0.005;
@@ -285,22 +285,16 @@ function Ring({ onOpen, motion }: { onOpen: (id: string) => void; motion: boolea
     if (focus !== lastFocus.current) { lastFocus.current = focus; setFocus(focus); }
 
     if (group.current) {
-      group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, 0.1 + s.pointerY * 0.04 + s.progress * 0.2, 2.5, delta);
+      group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, 0.3 + s.pointerY * 0.04 + s.progress * 0.25, 2.5, delta);
       group.current.rotation.z = THREE.MathUtils.damp(group.current.rotation.z, s.pointerX * 0.025, 2.5, delta);
-      group.current.position.y = (narrow ? 1.7 : 1.15) + Math.sin(t * 0.6) * 0.05;
+      group.current.position.y = Math.sin(t * 0.6) * 0.05;
     }
-
-    const p = s.progress;
-    camera.position.z = THREE.MathUtils.damp(camera.position.z, (narrow ? 25 : 15.5) + p * 4, 3, delta);
-    camera.position.y = THREE.MathUtils.damp(camera.position.y, 1.6 + p * 2.4, 3, delta);
-    camera.position.x = THREE.MathUtils.damp(camera.position.x, s.pointerX * 0.4, 3, delta);
-    camera.lookAt(0, narrow ? -2.2 : -0.85, 0);
   });
 
   const panels = (reflect: boolean) => heroPanels.map((panel, i) => <Panel key={i} index={i} {...panel} geometry={geometry} onOpen={onOpen} reflect={reflect} />);
 
   return (
-    <group ref={group} position={[0, narrow ? 1.7 : 1.15, 0]}>
+    <group ref={group}>
       <group ref={spin}>{panels(false)}</group>
       {/* Mirror image under the floor line for a glossy-floor reflection. */}
       <group position={[0, FLOOR * 2, 0]} scale={[1, -1, 1]}>
@@ -311,24 +305,3 @@ function Ring({ onOpen, motion }: { onOpen: (id: string) => void; motion: boolea
   );
 }
 
-function ReadySignal({ onReady }: { onReady: () => void }) {
-  useEffect(() => { onReady(); }, [onReady]);
-  return null;
-}
-
-export default function HeroScene({ onOpen, onReady, active, motion }: {
-  onOpen: (id: string) => void; onReady: () => void; active: boolean; motion: boolean;
-}) {
-  return (
-    <Canvas
-      frameloop={active ? 'always' : 'never'}
-      dpr={[1, 1.5]}
-      gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-      camera={{ position: [0, 1.6, 15.5], fov: 32, near: 0.1, far: 60 }}
-      onPointerMissed={() => setCursor(null)}
-    >
-      <Ring onOpen={onOpen} motion={motion} />
-      <ReadySignal onReady={onReady} />
-    </Canvas>
-  );
-}

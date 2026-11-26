@@ -10,6 +10,8 @@ export const scene = {
   dragDistance: 0,
   nudge: 0, // -1 / +1 requests from the prev/next buttons
   hovering: false,
+  ringScale: 1,
+  revealed: false, // set when the page reveals; 3D intros start from this moment
   pointerX: 0, // -1 … 1
   pointerY: 0,
 };

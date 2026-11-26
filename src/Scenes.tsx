@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { Environment, Float, Lightformer, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { scene as sceneState } from './store';
@@ -77,7 +77,7 @@ function Station({ position, index }: { position: THREE.Vector3; index: number }
   </group>;
 }
 
-function Pipeline() {
+export function Pipeline() {
   const curve = usePath();
   const group = useRef<THREE.Group>(null);
   const tube = useMemo(() => new THREE.TubeGeometry(curve, 300, 0.014, 8, false), [curve]);
@@ -93,21 +93,13 @@ function Pipeline() {
   </group>;
 }
 
-function Studio() {
+export function Studio() {
   return <Environment resolution={128}>
     <Lightformer form="rect" intensity={2.2} position={[0, 5, -6]} scale={[12, 3, 1]} />
     <Lightformer form="rect" intensity={1.2} color={SKY} position={[-6, 1, 3]} scale={[4, 6, 1]} rotation-y={Math.PI / 2} />
     <Lightformer form="rect" intensity={0.9} position={[6, -1, 3]} scale={[4, 6, 1]} rotation-y={-Math.PI / 2} />
     <Lightformer form="ring" intensity={1.5} position={[0, 0, 8]} scale={3} />
   </Environment>;
-}
-
-export function FlowScene({ active }: { active: boolean }) {
-  return <Canvas frameloop={active ? 'always' : 'never'} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }} camera={{ position: [0, 0.3, 8.2], fov: 42 }}>
-    <ambientLight intensity={0.4} />
-    <Studio />
-    <Pipeline />
-  </Canvas>;
 }
 
 /* ——————————————————————————————————————————————
@@ -135,7 +127,7 @@ function Shape({ kind, color }: { kind: (typeof SHAPES)[number]['kind']; color: 
   }
 }
 
-function Cluster() {
+export function Cluster() {
   const group = useRef<THREE.Group>(null);
   const spinners = useRef<(THREE.Group | null)[]>([]);
   useFrame((state, delta) => {
@@ -155,11 +147,3 @@ function Cluster() {
   </group>;
 }
 
-export function ShapesScene({ active }: { active: boolean }) {
-  return <Canvas frameloop={active ? 'always' : 'never'} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }} camera={{ position: [0, 0, 10.5], fov: 40 }}>
-    <ambientLight intensity={0.3} />
-    <directionalLight position={[4, 6, 5]} intensity={1.2} />
-    <Studio />
-    <Cluster />
-  </Canvas>;
-}
