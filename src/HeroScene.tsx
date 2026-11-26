@@ -8,18 +8,19 @@ import { scene as sceneState, setCursor } from './store';
 
 const PANEL_W = 3.2;
 const PANEL_H = 2;
-const GAP = 0.42;
+const GAP = 0.5;
 const COUNT = heroPanels.length;
 const RADIUS = (COUNT * (PANEL_W + GAP)) / (Math.PI * 2);
+const BG = new THREE.Color('#f3f2ee');
+const ACCENT = new THREE.Color('#2f45d8');
 
-/** A plane bent to sit on the surface of the ring's cylinder, so raycasting matches what you see. */
+/** A plane bent onto the ring's cylinder, so raycasting matches what you see. */
 function useBentPlane() {
   return useMemo(() => {
-    const geo = new THREE.PlaneGeometry(PANEL_W, PANEL_H, 48, 1);
+    const geo = new THREE.PlaneGeometry(PANEL_W, PANEL_H, 48, 8);
     const pos = geo.attributes.position;
     for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const theta = x / RADIUS;
+      const theta = pos.getX(i) / RADIUS;
       pos.setX(i, Math.sin(theta) * RADIUS);
       pos.setZ(i, Math.cos(theta) * RADIUS - RADIUS);
     }
@@ -29,19 +30,25 @@ function useBentPlane() {
 }
 
 const vertex = /* glsl */ `
-  uniform float uTime;
   uniform float uVelocity;
   uniform float uHover;
+  uniform float uIntro;
+  uniform float uTime;
+  uniform float uIndex;
   varying vec2 vUv;
   varying float vDepth;
   void main() {
     vUv = uv;
     vec3 p = position;
-    float centered = uv.x - 0.5;
-    // Scroll speed flexes the screens; hover lifts them gently toward the viewer.
-    p.z += sin(uv.y * 3.14159) * uVelocity * 0.35;
-    p.y += sin(centered * 3.0 + uTime * 0.8) * 0.03;
-    p.z += uHover * 0.18 * sin(uv.x * 3.14159) * sin(uv.y * 3.14159);
+    float arch = sin(uv.x * 3.14159) * sin(uv.y * 3.14159);
+    // Scroll speed flexes the screens like paper; hover lifts them toward you.
+    p.z += sin(uv.y * 3.14159) * uVelocity * 0.25;
+    p.z += uHover * 0.16 * arch;
+    // A slow wave travels across the ring.
+    p.y += sin(uTime * 0.9 + uIndex * 0.8 + uv.x * 2.0) * 0.06;
+    // Intro: screens unfurl from flat strips.
+    p.y *= mix(0.02, 1.0, uIntro);
+    p.z -= (1.0 - uIntro) * 2.0;
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     vDepth = -mv.z;
     gl_Position = projectionMatrix * mv;
@@ -51,10 +58,11 @@ const vertex = /* glsl */ `
 const fragment = /* glsl */ `
   uniform sampler2D uMap;
   uniform float uHover;
-  uniform float uVelocity;
   uniform float uImageAspect;
-  uniform vec3 uAccent;
   uniform float uFar;
+  uniform float uIntro;
+  uniform vec3 uBg;
+  uniform vec3 uAccent;
   varying vec2 vUv;
   varying float vDepth;
 
@@ -65,39 +73,29 @@ const fragment = /* glsl */ `
 
   void main() {
     vec2 size = vec2(${PANEL_W.toFixed(2)}, ${PANEL_H.toFixed(2)});
-    float d = roundBox((vUv - 0.5) * size, size * 0.5, 0.1);
+    float d = roundBox((vUv - 0.5) * size, size * 0.5, 0.08);
     float aa = fwidth(d);
     float alpha = 1.0 - smoothstep(-aa, aa, d);
     if (alpha < 0.01) discard;
 
-    // object-fit: cover, plus a slight zoom-out on hover.
     float planeAspect = size.x / size.y;
     vec2 uv = vUv - 0.5;
     if (uImageAspect > planeAspect) uv.x *= planeAspect / uImageAspect;
     else uv.y *= uImageAspect / planeAspect;
-    uv *= 1.0 - 0.07 * uHover;
-    uv += 0.5;
+    uv *= 1.0 - 0.05 * uHover;
+    vec3 col = texture2D(uMap, uv + 0.5).rgb;
 
-    float shift = uVelocity * 0.012;
-    vec3 col = vec3(
-      texture2D(uMap, uv + vec2(shift, 0.0)).r,
-      texture2D(uMap, uv).g,
-      texture2D(uMap, uv - vec2(shift, 0.0)).b
-    );
+    float grey = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(vec3(grey), col, mix(0.7, 1.0, uHover));
 
-    // Dimmed at rest, full brightness on hover.
-    col *= mix(0.62, 1.05, uHover);
-    float vignette = smoothstep(0.85, 0.25, length(vUv - 0.5));
-    col *= mix(0.7, 1.0, vignette);
+    float edge = smoothstep(-0.018, -0.004, d);
+    col = mix(col, mix(vec3(0.0), uAccent, uHover), edge * mix(0.12, 0.9, uHover));
 
-    // Thin accent rim on hover.
-    float rim = smoothstep(-0.045, -0.012, d);
-    col = mix(col, uAccent, rim * uHover * 0.9);
+    if (!gl_FrontFacing) col = mix(uBg, vec3(0.72), 0.3);
 
-    if (!gl_FrontFacing) col = col * 0.16 + vec3(0.02);
-    // Depth fade into the page background.
-    col = mix(col, vec3(0.0044), smoothstep(uFar - 9.0, uFar, vDepth) * 0.92);
-    gl_FragColor = vec4(col, alpha);
+    col = mix(col, uBg, smoothstep(uFar - 8.0, uFar, vDepth) * 0.88);
+    col = mix(uAccent, col, smoothstep(0.0, 0.6, uIntro));
+    gl_FragColor = vec4(col, alpha * smoothstep(0.0, 0.25, uIntro));
     #include <colorspace_fragment>
   }
 `;
@@ -117,28 +115,34 @@ function Panel({ index, image, project, label, geometry, onOpen }: {
     const img = texture.image as { width: number; height: number };
     return {
       uMap: { value: texture },
-      uTime: { value: 0 },
       uHover: { value: 0 },
       uVelocity: { value: 0 },
+      uIntro: { value: 0 },
+      uTime: { value: 0 },
+      uIndex: { value: index },
       uImageAspect: { value: img.width / img.height },
-      uAccent: { value: new THREE.Color('#ff5b2e') },
       uFar: { value: 20 },
+      uBg: { value: BG },
+      uAccent: { value: ACCENT },
     };
-  }, [texture]);
+  }, [texture, index]);
 
   useFrame((state, delta) => {
-    hover.current = THREE.MathUtils.damp(hover.current, target.current, 6, delta);
-    if (!material.current) return;
-    material.current.uniforms.uHover.value = hover.current;
-    material.current.uniforms.uTime.value = state.clock.elapsedTime + index;
-    material.current.uniforms.uVelocity.value = sceneState.smoothVelocity;
-    material.current.uniforms.uFar.value = state.camera.position.z + RADIUS + 1;
+    hover.current = THREE.MathUtils.damp(hover.current, target.current, 7, delta);
+    const u = material.current?.uniforms;
+    if (!u) return;
+    const t = state.clock.elapsedTime;
+    u.uHover.value = hover.current;
+    u.uVelocity.value = sceneState.smoothVelocity;
+    u.uTime.value = t;
+    u.uIntro.value = THREE.MathUtils.smootherstep(t, 0.2 + index * 0.09, 1.5 + index * 0.09);
+    u.uFar.value = state.camera.position.z + RADIUS;
   });
 
   const over = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     target.current = 1;
-    setCursor(`View ${label}`);
+    setCursor(label);
     document.body.style.cursor = 'pointer';
   };
   const out = () => {
@@ -161,41 +165,30 @@ function Panel({ index, image, project, label, geometry, onOpen }: {
           onOpen(project);
         }}
       >
-        <shaderMaterial
-          ref={material}
-          vertexShader={vertex}
-          fragmentShader={fragment}
-          uniforms={uniforms}
-          side={THREE.DoubleSide}
-          transparent
-        />
+        <shaderMaterial ref={material} vertexShader={vertex} fragmentShader={fragment} uniforms={uniforms} side={THREE.DoubleSide} transparent />
       </mesh>
     </group>
   );
 }
 
-function Dust() {
-  const ref = useRef<THREE.Points>(null);
-  const positions = useMemo(() => {
-    const count = 700;
-    const arr = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      const r = 6 + Math.random() * 10;
-      const t = Math.random() * Math.PI * 2;
-      const y = (Math.random() - 0.5) * 9;
-      arr.set([Math.cos(t) * r, y, Math.sin(t) * r], i * 3);
-    }
-    return arr;
+/** Soft contact shadow on an invisible floor under the ring. */
+function FloorShadow() {
+  const tex = useMemo(() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const g = c.getContext('2d')!;
+    const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+    grad.addColorStop(0, 'rgba(20,20,19,0.22)');
+    grad.addColorStop(0.55, 'rgba(20,20,19,0.08)');
+    grad.addColorStop(1, 'rgba(20,20,19,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 256, 256);
+    return new THREE.CanvasTexture(c);
   }, []);
-  useFrame((_, delta) => { if (ref.current) ref.current.rotation.y += delta * 0.015; });
-  return (
-    <points ref={ref}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <pointsMaterial size={0.028} color="#f3d7c8" transparent opacity={0.55} sizeAttenuation depthWrite={false} />
-    </points>
-  );
+  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.7, 0]}>
+    <planeGeometry args={[RADIUS * 2.9, RADIUS * 2.9]} />
+    <meshBasicMaterial map={tex} transparent depthWrite={false} />
+  </mesh>;
 }
 
 function Ring({ onOpen, motion }: { onOpen: (id: string) => void; motion: boolean }) {
@@ -205,39 +198,35 @@ function Ring({ onOpen, motion }: { onOpen: (id: string) => void; motion: boolea
   const { camera, size } = useThree();
   const narrow = size.width < 760;
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const s = sceneState;
-    s.smoothVelocity = THREE.MathUtils.damp(s.smoothVelocity, THREE.MathUtils.clamp(s.velocity / 40, -1, 1), 5, delta);
-    // Constant drift + scroll speed + drag momentum.
-    const auto = motion ? 0.07 : 0.015;
-    s.rotation += delta * auto + s.smoothVelocity * delta * 1.4 + s.dragVelocity;
-    s.dragVelocity *= Math.pow(0.04, delta);
+    const t = state.clock.elapsedTime;
+    s.smoothVelocity = THREE.MathUtils.damp(s.smoothVelocity, THREE.MathUtils.clamp(s.velocity / 50, -1, 1), 4, delta);
+    // Intro spin that settles into a slow drift.
+    const introBoost = motion ? Math.max(0, 1.6 - t) * 1.2 : 0;
+    s.rotation += delta * ((motion ? 0.06 : 0.012) + introBoost) + s.smoothVelocity * delta * 0.9 + s.dragVelocity;
+    s.dragVelocity *= Math.pow(0.03, delta);
     if (spin.current) spin.current.rotation.y = s.rotation;
 
     if (group.current) {
-      // Gentle tilt toward the pointer.
-      const tx = 0.16 + s.pointerY * 0.06;
-      const tz = -0.07 + s.pointerX * 0.04;
-      group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, tx, 3, delta);
-      group.current.rotation.z = THREE.MathUtils.damp(group.current.rotation.z, tz, 3, delta);
+      group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, 0.13 + s.pointerY * 0.05 + s.progress * 0.25, 2.5, delta);
+      group.current.rotation.z = THREE.MathUtils.damp(group.current.rotation.z, -0.05 + s.pointerX * 0.035, 2.5, delta);
+      group.current.position.y = THREE.MathUtils.damp(group.current.position.y, (narrow ? 1.6 : 1.1) + Math.sin(t * 0.6) * 0.08, 2, delta);
     }
 
-    // Pull the camera back and up as the hero scrolls away.
     const p = s.progress;
-    const baseZ = narrow ? 17 : 14.5;
-    camera.position.z = THREE.MathUtils.damp(camera.position.z, baseZ + p * 5, 4, delta);
-    camera.position.y = THREE.MathUtils.damp(camera.position.y, 1.4 + p * 3 + s.pointerY * -0.3, 4, delta);
-    camera.position.x = THREE.MathUtils.damp(camera.position.x, s.pointerX * 0.5, 4, delta);
-    camera.lookAt(0, narrow ? -1.2 : -1.1, 0);
+    camera.position.z = THREE.MathUtils.damp(camera.position.z, (narrow ? 17.5 : 15) + p * 4, 3, delta);
+    camera.position.y = THREE.MathUtils.damp(camera.position.y, 1.3 + p * 2.4, 3, delta);
+    camera.position.x = THREE.MathUtils.damp(camera.position.x, s.pointerX * 0.4, 3, delta);
+    camera.lookAt(0, narrow ? -1.2 : -0.75, 0);
   });
 
   return (
-    <group ref={group} position={[0, narrow ? 1.4 : 0.9, 0]}>
+    <group ref={group} position={[0, narrow ? 1.6 : 1.1, 0]}>
       <group ref={spin}>
-        {heroPanels.map((panel, i) => (
-          <Panel key={i} index={i} {...panel} geometry={geometry} onOpen={onOpen} />
-        ))}
+        {heroPanels.map((panel, i) => <Panel key={i} index={i} {...panel} geometry={geometry} onOpen={onOpen} />)}
       </group>
+      <FloorShadow />
     </group>
   );
 }
@@ -255,14 +244,11 @@ export default function HeroScene({ onOpen, onReady, active, motion }: {
       frameloop={active ? 'always' : 'never'}
       dpr={[1, 1.75]}
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-      camera={{ position: [0, 1.4, 12.5], fov: 35, near: 0.1, far: 60 }}
+      camera={{ position: [0, 1.3, 15], fov: 32, near: 0.1, far: 60 }}
       onPointerMissed={() => setCursor(null)}
     >
       <Ring onOpen={onOpen} motion={motion} />
-      <Dust />
       <ReadySignal onReady={onReady} />
     </Canvas>
   );
 }
-
-export { RADIUS };

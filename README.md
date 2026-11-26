@@ -7,9 +7,10 @@ Built with React 19, TypeScript, Vite, Three.js / React Three Fiber, GSAP (Scrol
 ## Highlights
 
 - **3D hero**: a ring of curved screens showing real captures of live projects, rendered with a custom GLSL shader (rounded corners, scroll-reactive bend + RGB shift, hover glow, depth fade). Drag to spin, click a screen to open the case study.
-- **Pinned horizontal "Selected work"** gallery with parallax images on desktop; a vertical stack on mobile.
+- **Two more live 3D scenes**: a workflow pipeline with data particles flowing between stations (Systems), and a cluster of glossy shapes that follow the pointer (Contact). Each renders only while on screen.
+- **Case-study list** with scroll-driven image reveals.
 - **Interactive walkthroughs** for the gym access system and AI publishing / clipping automations.
-- Word-by-word scroll reveal, line-mask headline reveals, count-up stats, magnetic CTA, custom cursor, preloader.
+- Word-by-word scroll reveal, line-mask headline reveals, count-up stats, smooth scrolling.
 - Real GitHub contribution calendar, live site previews (where the site allows framing), downloadable CV.
 - Respects `prefers-reduced-motion`; WebGL pauses when the hero is off-screen and falls back to an image if WebGL fails.
 
@@ -28,5 +29,5 @@ All project text, links and services live in `src/content.ts`. The 3D ring's scr
 
 ## Design
 
-- Type: Clash Display (headlines), Satoshi (text), system mono (labels)
-- Colour: ink `#0b0b0c`, paper `#eeece6`, ember accent `#ff5b2e`
+- Type: Satoshi (300 to 700) throughout
+- Colour: paper `#f3f2ee`, ink `#141413`, cobalt accent `#2f45d8`

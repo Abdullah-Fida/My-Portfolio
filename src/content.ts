@@ -48,12 +48,12 @@ export const projects: Project[] = [
     visual: 'news', status: 'Live website',
   },
   {
-    id: 'gym-management', title: 'Beyond the front desk', eyebrow: 'Software meets the real world.', category: 'development',
-    description: 'A gym system that knows who can walk through the door.',
+    id: 'gym-management', title: 'Gym access system', eyebrow: 'Software meets the real world.', category: 'development',
+    description: 'Fingerprint check-in, door access and membership tracking in one system.',
     role: 'Full-stack gym management & access control',
     summary: 'A live management system built around the complete member journey. Fingerprint check-in, door access, membership expiry and automatic messages work together in one flow.',
     features: ['Fingerprint-based member check-in', 'Door access control', 'Membership expiry tracking', 'Automatic member messages', 'End-to-end management workflow'],
-    tags: ['Full-stack', 'Access control', 'Automation'], visual: 'gym', status: 'Live system · private demo',
+    tags: ['Full-stack', 'Access control', 'Automation'], visual: 'gym', status: 'Private system',
   },
   {
     id: 'wovenaa', title: 'Wovenaa', eyebrow: 'A softer side of commerce.', category: 'commerce',
@@ -92,20 +92,20 @@ export const projects: Project[] = [
     visual: 'agency', status: 'Live website',
   },
   {
-    id: 'social-agent', title: 'The publishing shift', eyebrow: 'The work carries on.', category: 'automation',
-    description: 'An agent that creates the post, then hits publish.',
+    id: 'social-agent', title: 'Social publishing agent', eyebrow: 'The work carries on.', category: 'automation',
+    description: 'Writes social posts and publishes them on its own.',
     role: 'Social content generation & publishing automation',
     summary: 'An automated workflow that takes social content from creation through publishing. Built to remove the repeated manual steps between an idea and a post going live.',
     features: ['Automatic post creation', 'Connected social publishing', 'End-to-end workflow automation', 'No routine manual publishing step'],
-    tags: ['AI agents', 'Social automation', 'Workflows'], visual: 'social', status: 'Project walkthrough',
+    tags: ['AI agents', 'Social automation', 'Workflows'], visual: 'social', status: 'Automation',
   },
   {
-    id: 'stream-clips', title: 'Long stream. Short clips.', eyebrow: 'Catch the good part.', category: 'automation',
-    description: 'A live stream goes in. Social-ready highlights come out.',
+    id: 'stream-clips', title: 'Stream clipping pipeline', eyebrow: 'Catch the good part.', category: 'automation',
+    description: 'Watches live streams, cuts the highlights and posts them.',
     role: 'Stream clipping, social publishing & YouTube automation',
     summary: 'An automation that watches live streams, finds the highlights, cuts them into clips and publishes to social platforms. The workflow connects the whole process, including YouTube automation.',
     features: ['Live stream monitoring', 'Highlight detection', 'Automatic clip cutting', 'Social platform publishing', 'YouTube automation'],
-    tags: ['Video automation', 'AI workflows', 'YouTube'], visual: 'clips', status: 'Project walkthrough',
+    tags: ['Video automation', 'AI workflows', 'YouTube'], visual: 'clips', status: 'Automation',
   },
 ];
 
@@ -130,18 +130,18 @@ export const heroPanels: { image: string; project: string; label: string }[] = [
 
 export const services = [
   {
-    title: 'Shopify & commerce',
-    body: 'Storefronts built to sell, then looked after every day: products, collections, launches and the small fixes that keep orders moving.',
-    points: ['Store builds & theme development', 'Day-to-day store management', 'Product & collection presentation', 'Live-selling storefronts'],
+    title: 'Shopify stores',
+    body: 'Store setup, theme development and the day-to-day running of a store: products, collections, launches and fixes.',
+    points: ['Store builds and theme work', 'Ongoing store management', 'Product and collection pages', 'Live-selling storefronts'],
   },
   {
-    title: 'Custom web apps',
-    body: 'Websites and full-stack systems on the MERN stack, including software that reaches into the real world, like a gym door that knows its members.',
-    points: ['React, Node.js, Express, MongoDB', 'Business & agency websites', 'Access control & member systems', 'Responsive, fast interfaces'],
+    title: 'Websites and web apps',
+    body: 'Business websites and full-stack applications with React, Node.js, Express and MongoDB, including systems that talk to hardware.',
+    points: ['React, Node.js, Express, MongoDB', 'Business and agency websites', 'Access control and member systems', 'Fast, responsive interfaces'],
   },
   {
-    title: 'AI agents & automation',
-    body: 'Agents that create the article, the post or the clip, and then publish it. The repetitive work between an idea and "live" goes away.',
-    points: ['AI article generation & publishing', 'Social post automation', 'Stream highlight clipping', 'YouTube automation'],
+    title: 'AI automation',
+    body: 'Agents and workflows that generate articles, social posts and video clips, then publish them without someone pressing the button.',
+    points: ['Article generation and publishing', 'Social post automation', 'Stream highlight clipping', 'YouTube automation'],
   },
 ];
