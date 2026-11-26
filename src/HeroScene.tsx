@@ -4,20 +4,23 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { heroPanels } from './content';
-import { scene as sceneState, setCursor } from './store';
+import { scene as sceneState, setCursor, setFocus } from './store';
 
-const PANEL_W = 3.2;
-const PANEL_H = 2;
-const GAP = 0.5;
+const PANEL_W = 3.4;
+const PANEL_H = 2.2;
+const GAP = 0.55;
 const COUNT = heroPanels.length;
+const STEP = (Math.PI * 2) / COUNT;
 const RADIUS = (COUNT * (PANEL_W + GAP)) / (Math.PI * 2);
+const FLOOR = -PANEL_H / 2 - 0.12;
+const DWELL = 3.2; // seconds each project stays at the front
 const BG = new THREE.Color('#111110');
 const ACCENT = new THREE.Color('#7b8cff');
 
 /** A plane bent onto the ring's cylinder, so raycasting matches what you see. */
 function useBentPlane() {
   return useMemo(() => {
-    const geo = new THREE.PlaneGeometry(PANEL_W, PANEL_H, 32, 6);
+    const geo = new THREE.PlaneGeometry(PANEL_W, PANEL_H, 36, 6);
     const pos = geo.attributes.position;
     for (let i = 0; i < pos.count; i++) {
       const theta = pos.getX(i) / RADIUS;
@@ -41,14 +44,11 @@ const vertex = /* glsl */ `
     vUv = uv;
     vec3 p = position;
     float arch = sin(uv.x * 3.14159) * sin(uv.y * 3.14159);
-    // Scroll speed flexes the screens like paper; hover lifts them toward you.
     p.z += sin(uv.y * 3.14159) * uVelocity * 0.25;
-    p.z += uHover * 0.16 * arch;
-    // A slow wave travels across the ring.
-    p.y += sin(uTime * 0.9 + uIndex * 0.8 + uv.x * 2.0) * 0.06;
-    // Intro: screens unfurl from flat strips.
+    p.z += uHover * 0.12 * arch;
+    p.y += sin(uTime * 0.8 + uIndex * 0.8 + uv.x * 2.0) * 0.035;
+    // Intro: screens unfurl from thin strips.
     p.y *= mix(0.02, 1.0, uIntro);
-    p.z -= (1.0 - uIntro) * 2.0;
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     vDepth = -mv.z;
     gl_Position = projectionMatrix * mv;
@@ -58,9 +58,13 @@ const vertex = /* glsl */ `
 const fragment = /* glsl */ `
   uniform sampler2D uMap;
   uniform float uHover;
+  uniform float uFocus;
+  uniform float uFacing;
   uniform float uImageAspect;
   uniform float uFar;
   uniform float uIntro;
+  uniform float uTime;
+  uniform float uReflect;
   uniform vec3 uBg;
   uniform vec3 uAccent;
   varying vec2 vUv;
@@ -73,81 +77,122 @@ const fragment = /* glsl */ `
 
   void main() {
     vec2 size = vec2(${PANEL_W.toFixed(2)}, ${PANEL_H.toFixed(2)});
-    float d = roundBox((vUv - 0.5) * size, size * 0.5, 0.08);
+    vec2 p = (vUv - 0.5) * size;
+    float d = roundBox(p, size * 0.5, 0.09);
     float aa = fwidth(d);
     float alpha = 1.0 - smoothstep(-aa, aa, d);
     if (alpha < 0.01) discard;
 
-    float planeAspect = size.x / size.y;
-    vec2 uv = vUv - 0.5;
-    if (uImageAspect > planeAspect) uv.x *= planeAspect / uImageAspect;
-    else uv.y *= uImageAspect / planeAspect;
-    uv *= 1.0 - 0.05 * uHover;
-    vec3 col = texture2D(uMap, uv + 0.5).rgb;
+    // Browser chrome: a slim bar with three dots and an address pill.
+    float barH = 0.15;
+    float top = size.y * 0.5 - p.y;
+    vec3 col;
+    if (top < barH) {
+      col = vec3(0.012);
+      for (int i = 0; i < 3; i++) {
+        vec2 c = vec2(-size.x * 0.5 + 0.17 + float(i) * 0.12, size.y * 0.5 - barH * 0.5);
+        col = mix(col, vec3(0.07), 1.0 - smoothstep(0.028, 0.034, length(p - c)));
+      }
+      float pill = roundBox(p - vec2(0.0, size.y * 0.5 - barH * 0.5), vec2(0.62, 0.035), 0.035);
+      col = mix(col, vec3(0.032), 1.0 - smoothstep(-0.006, 0.0, pill));
+    } else {
+      // Image below the bar, object-fit: cover, slight zoom-out when in focus.
+      vec2 area = vec2(size.x, size.y - barH);
+      vec2 uv = vec2(vUv.x, (p.y + size.y * 0.5) / area.y) - 0.5;
+      float planeAspect = area.x / area.y;
+      if (uImageAspect > planeAspect) uv.x *= planeAspect / uImageAspect;
+      else uv.y *= uImageAspect / planeAspect;
+      uv *= 1.0 - 0.04 * max(uHover, uFocus);
+      col = texture2D(uMap, uv + 0.5).rgb;
+    }
 
+    // Side screens are muted and dimmer; the front one is in full colour.
+    float lit = max(uHover, uFocus);
     float grey = dot(col, vec3(0.299, 0.587, 0.114));
-    col = mix(vec3(grey), col, mix(0.7, 1.0, uHover));
+    col = mix(vec3(grey), col, mix(0.45, 1.0, lit));
+    col *= mix(0.42, 1.0, smoothstep(-0.3, 1.0, uFacing)) * mix(0.85, 1.0, lit);
 
-    float edge = smoothstep(-0.018, -0.004, d);
-    col = mix(col, mix(vec3(1.0), uAccent, uHover), edge * mix(0.1, 0.9, uHover));
+    // A soft light sheen sweeps across the front screen.
+    float band = fract((vUv.x * 0.8 + vUv.y * 0.35) - uTime * 0.12);
+    col += smoothstep(0.0, 0.08, band) * smoothstep(0.2, 0.08, band) * 0.07 * uFocus;
 
-    if (!gl_FrontFacing) col = mix(uBg, vec3(0.2), 0.35);
+    // Hairline edge; accent when hovered.
+    float edge = smoothstep(-0.02, -0.005, d);
+    col = mix(col, mix(vec3(1.0), uAccent, uHover), edge * mix(0.12, 0.9, uHover));
 
-    col = mix(col, uBg, smoothstep(uFar - 8.0, uFar, vDepth) * 0.88);
-    col = mix(uAccent, col, smoothstep(0.0, 0.6, uIntro));
-    gl_FragColor = vec4(col, alpha * smoothstep(0.0, 0.25, uIntro));
+    bool front = uReflect > 0.5 ? !gl_FrontFacing : gl_FrontFacing;
+    if (!front) col = mix(uBg, vec3(0.2), 0.35);
+
+    col = mix(col, uBg, smoothstep(uFar - 8.0, uFar, vDepth) * 0.9);
+
+    float a = alpha * smoothstep(0.0, 0.25, uIntro);
+    // Reflection fades out with distance from the floor.
+    if (uReflect > 0.5) a *= smoothstep(0.55, 0.0, vUv.y) * 0.22;
+    gl_FragColor = vec4(col, a);
     #include <colorspace_fragment>
   }
 `;
 
-function Panel({ index, image, project, label, geometry, onOpen }: {
-  index: number; image: string; project: string; label: string; geometry: THREE.BufferGeometry; onOpen: (id: string) => void;
+function Panel({ index, image, project, label, geometry, onOpen, reflect = false }: {
+  index: number; image: string; project: string; label: string; geometry: THREE.BufferGeometry; onOpen: (id: string) => void; reflect?: boolean;
 }) {
   const texture = useTexture(image);
   const material = useRef<THREE.ShaderMaterial>(null);
+  const mesh = useRef<THREE.Mesh>(null);
   const hover = useRef(0);
   const target = useRef(0);
-  const angle = (index / COUNT) * Math.PI * 2;
+  const focus = useRef(0);
+  const angle = index * STEP;
 
   const uniforms = useMemo(() => {
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 4;
-    texture.generateMipmaps = true;
     const img = texture.image as { width: number; height: number };
     return {
       uMap: { value: texture },
       uHover: { value: 0 },
+      uFocus: { value: 0 },
+      uFacing: { value: 0 },
       uVelocity: { value: 0 },
       uIntro: { value: 0 },
       uTime: { value: 0 },
       uIndex: { value: index },
+      uReflect: { value: reflect ? 1 : 0 },
       uImageAspect: { value: img.width / img.height },
       uFar: { value: 20 },
       uBg: { value: BG },
       uAccent: { value: ACCENT },
     };
-  }, [texture, index]);
+  }, [texture, index, reflect]);
 
   useFrame((state, delta) => {
-    hover.current = THREE.MathUtils.damp(hover.current, target.current, 7, delta);
     const u = material.current?.uniforms;
     if (!u) return;
     const t = state.clock.elapsedTime;
+    const facing = Math.cos(sceneState.rotation + angle);
+    focus.current = THREE.MathUtils.damp(focus.current, THREE.MathUtils.smoothstep(facing, 0.93, 1), 6, delta);
+    hover.current = THREE.MathUtils.damp(hover.current, target.current, 7, delta);
     u.uHover.value = hover.current;
+    u.uFocus.value = focus.current;
+    u.uFacing.value = facing;
     u.uVelocity.value = sceneState.smoothVelocity;
     u.uTime.value = t;
     u.uIntro.value = THREE.MathUtils.smootherstep(t, index * 0.06, 0.9 + index * 0.06);
     u.uFar.value = state.camera.position.z + RADIUS;
+    // The front screen steps slightly out of the ring.
+    if (mesh.current) mesh.current.position.z = RADIUS + focus.current * 0.45 + hover.current * 0.1;
   });
 
   const over = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     target.current = 1;
+    sceneState.hovering = true;
     setCursor(label);
     document.body.style.cursor = 'pointer';
   };
   const out = () => {
     target.current = 0;
+    sceneState.hovering = false;
     setCursor(null);
     document.body.style.cursor = '';
   };
@@ -155,39 +200,41 @@ function Panel({ index, image, project, label, geometry, onOpen }: {
   return (
     <group rotation={[0, angle, 0]}>
       <mesh
+        ref={mesh}
         geometry={geometry}
         position={[0, 0, RADIUS]}
-        onPointerOver={over}
-        onPointerOut={out}
-        onClick={e => {
+        raycast={reflect ? () => null : undefined}
+        onPointerOver={reflect ? undefined : over}
+        onPointerOut={reflect ? undefined : out}
+        onClick={reflect ? undefined : e => {
           e.stopPropagation();
           if (sceneState.dragDistance > 6) return;
           out();
           onOpen(project);
         }}
       >
-        <shaderMaterial ref={material} vertexShader={vertex} fragmentShader={fragment} uniforms={uniforms} side={THREE.DoubleSide} transparent />
+        <shaderMaterial ref={material} vertexShader={vertex} fragmentShader={fragment} uniforms={uniforms} side={THREE.DoubleSide} transparent depthWrite={!reflect} />
       </mesh>
     </group>
   );
 }
 
-/** Soft contact shadow on an invisible floor under the ring. */
-function FloorShadow() {
+/** Soft accent glow on the floor under the ring. */
+function FloorGlow() {
   const tex = useMemo(() => {
     const c = document.createElement('canvas');
     c.width = c.height = 256;
     const g = c.getContext('2d')!;
     const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-    grad.addColorStop(0, 'rgba(123,140,255,0.16)');
-    grad.addColorStop(0.55, 'rgba(123,140,255,0.05)');
+    grad.addColorStop(0, 'rgba(123,140,255,0.18)');
+    grad.addColorStop(0.5, 'rgba(123,140,255,0.06)');
     grad.addColorStop(1, 'rgba(123,140,255,0)');
     g.fillStyle = grad;
     g.fillRect(0, 0, 256, 256);
     return new THREE.CanvasTexture(c);
   }, []);
-  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.7, 0]}>
-    <planeGeometry args={[RADIUS * 2.9, RADIUS * 2.9]} />
+  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR - 0.01, 0]} raycast={() => null}>
+    <planeGeometry args={[RADIUS * 3.2, RADIUS * 3.2]} />
     <meshBasicMaterial map={tex} transparent depthWrite={false} />
   </mesh>;
 }
@@ -195,39 +242,71 @@ function FloorShadow() {
 function Ring({ onOpen, motion }: { onOpen: (id: string) => void; motion: boolean }) {
   const group = useRef<THREE.Group>(null);
   const spin = useRef<THREE.Group>(null);
+  const mirror = useRef<THREE.Group>(null);
   const geometry = useBentPlane();
   const { camera, size } = useThree();
   const narrow = size.width < 760;
+  const timer = useRef(0);
+  const wasDragging = useRef(false);
+  const lastFocus = useRef(-1);
 
   useFrame((state, delta) => {
     const s = sceneState;
     const t = state.clock.elapsedTime;
     s.smoothVelocity = THREE.MathUtils.damp(s.smoothVelocity, THREE.MathUtils.clamp(s.velocity / 50, -1, 1), 4, delta);
-    // Intro spin that settles into a slow drift.
-    const introBoost = motion ? Math.max(0, 1.1 - t) * 1.2 : 0;
-    s.rotation += delta * ((motion ? 0.06 : 0.012) + introBoost) + s.smoothVelocity * delta * 0.9 + s.dragVelocity;
-    s.dragVelocity *= Math.pow(0.03, delta);
+
+    // Carousel: dwell on a project, then glide to the next. Drag and buttons override.
+    if (s.dragging) {
+      s.target += s.dragDelta * 0.005;
+      timer.current = 0;
+    } else if (wasDragging.current) {
+      s.target = Math.round(s.target / STEP) * STEP;
+    }
+    s.dragDelta = 0;
+    wasDragging.current = s.dragging;
+
+    if (s.nudge) {
+      s.target = Math.round(s.target / STEP) * STEP - s.nudge * STEP;
+      s.nudge = 0;
+      timer.current = 0;
+    }
+    if (!s.dragging && !s.hovering && t > 1.2) {
+      timer.current += delta;
+      if (timer.current > (motion ? DWELL : DWELL * 2)) {
+        timer.current = 0;
+        s.target = Math.round(s.target / STEP) * STEP - STEP;
+      }
+    }
+    s.rotation = THREE.MathUtils.damp(s.rotation, s.target, s.dragging ? 12 : motion ? 2.6 : 8, delta);
     if (spin.current) spin.current.rotation.y = s.rotation;
+    if (mirror.current) mirror.current.rotation.y = s.rotation;
+
+    const focus = ((Math.round(-s.rotation / STEP) % COUNT) + COUNT) % COUNT;
+    if (focus !== lastFocus.current) { lastFocus.current = focus; setFocus(focus); }
 
     if (group.current) {
-      group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, 0.13 + s.pointerY * 0.05 + s.progress * 0.25, 2.5, delta);
-      group.current.rotation.z = THREE.MathUtils.damp(group.current.rotation.z, -0.05 + s.pointerX * 0.035, 2.5, delta);
-      group.current.position.y = THREE.MathUtils.damp(group.current.position.y, (narrow ? 1.6 : 1.1) + Math.sin(t * 0.6) * 0.08, 2, delta);
+      group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, 0.1 + s.pointerY * 0.04 + s.progress * 0.2, 2.5, delta);
+      group.current.rotation.z = THREE.MathUtils.damp(group.current.rotation.z, s.pointerX * 0.025, 2.5, delta);
+      group.current.position.y = (narrow ? 1.7 : 1.15) + Math.sin(t * 0.6) * 0.05;
     }
 
     const p = s.progress;
-    camera.position.z = THREE.MathUtils.damp(camera.position.z, (narrow ? 17.5 : 15) + p * 4, 3, delta);
-    camera.position.y = THREE.MathUtils.damp(camera.position.y, 1.3 + p * 2.4, 3, delta);
+    camera.position.z = THREE.MathUtils.damp(camera.position.z, (narrow ? 25 : 15.5) + p * 4, 3, delta);
+    camera.position.y = THREE.MathUtils.damp(camera.position.y, 1.6 + p * 2.4, 3, delta);
     camera.position.x = THREE.MathUtils.damp(camera.position.x, s.pointerX * 0.4, 3, delta);
-    camera.lookAt(0, narrow ? -1.2 : -0.75, 0);
+    camera.lookAt(0, narrow ? -2.2 : -0.85, 0);
   });
 
+  const panels = (reflect: boolean) => heroPanels.map((panel, i) => <Panel key={i} index={i} {...panel} geometry={geometry} onOpen={onOpen} reflect={reflect} />);
+
   return (
-    <group ref={group} position={[0, narrow ? 1.6 : 1.1, 0]}>
-      <group ref={spin}>
-        {heroPanels.map((panel, i) => <Panel key={i} index={i} {...panel} geometry={geometry} onOpen={onOpen} />)}
+    <group ref={group} position={[0, narrow ? 1.7 : 1.15, 0]}>
+      <group ref={spin}>{panels(false)}</group>
+      {/* Mirror image under the floor line for a glossy-floor reflection. */}
+      <group position={[0, FLOOR * 2, 0]} scale={[1, -1, 1]}>
+        <group ref={mirror}>{panels(true)}</group>
       </group>
-      <FloorShadow />
+      <FloorGlow />
     </group>
   );
 }
@@ -245,7 +324,7 @@ export default function HeroScene({ onOpen, onReady, active, motion }: {
       frameloop={active ? 'always' : 'never'}
       dpr={[1, 1.5]}
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-      camera={{ position: [0, 1.3, 15], fov: 32, near: 0.1, far: 60 }}
+      camera={{ position: [0, 1.6, 15.5], fov: 32, near: 0.1, far: 60 }}
       onPointerMissed={() => setCursor(null)}
     >
       <Ring onOpen={onOpen} motion={motion} />

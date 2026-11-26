@@ -4,14 +4,14 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SplitText } from 'gsap/SplitText';
 import Lenis from 'lenis';
-import { ArrowRight, ArrowUpRight, CheckCheck, Code2, DoorOpen, FileText, Fingerprint, Menu, Play, Scissors, Send, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, CheckCheck, Code2, DoorOpen, FileText, Fingerprint, Menu, Play, Scissors, Send, Sparkles, X } from 'lucide-react';
 import { Github, Linkedin } from './BrandIcons';
 import GitHubActivity from './GitHubActivity';
 import { projectPreviews } from './LiveProjectPreview';
 import { ContactModal, ProjectModal } from './Modals';
-import { categoryLabels, profile, projects, services } from './content';
+import { categoryLabels, heroPanels, profile, projects, services } from './content';
 import type { Project } from './content';
-import { onCursor, scene } from './store';
+import { onCursor, onFocus, scene } from './store';
 import activity from './data/github-activity.json';
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
@@ -59,12 +59,25 @@ function SceneSlot({ className, children }: { className: string; children: (acti
   </div>;
 }
 
-function HeroCaption() {
-  const [label, setLabel] = useState<string | null>(null);
-  useEffect(() => onCursor(setLabel), []);
-  return <p className="hero-caption" data-intro aria-live="polite">
-    {label ? <>Open <strong>{label}</strong> <ArrowRight size={14} /></> : 'Drag to rotate. Click a screen to open the project.'}
-  </p>;
+function HeroCaption({ onOpen }: { onOpen: (id: string) => void }) {
+  const [focus, setFocusIndex] = useState(0);
+  const [hovered, setHovered] = useState<string | null>(null);
+  useEffect(() => onFocus(setFocusIndex), []);
+  useEffect(() => onCursor(setHovered), []);
+  const panel = heroPanels[focus];
+  return <div className="hero-now" data-intro>
+    <div className="hero-now-top">
+      <span className="hero-now-label">{hovered ? 'Open' : 'Now showing'}</span>
+      <span className="hero-now-count">{String(focus + 1).padStart(2, '0')} / {String(heroPanels.length).padStart(2, '0')}</span>
+    </div>
+    <button className="hero-now-title" onClick={() => onOpen(panel.project)} key={hovered ?? panel.label}>{hovered ?? panel.label} <ArrowUpRight size={18} /></button>
+    <div className="hero-now-bar"><i style={{ width: `${((focus + 1) / heroPanels.length) * 100}%` }} /></div>
+    <div className="hero-now-nav">
+      <button onClick={() => { scene.nudge = -1; }} aria-label="Previous project"><ArrowLeft size={16} /></button>
+      <button onClick={() => { scene.nudge = 1; }} aria-label="Next project"><ArrowRight size={16} /></button>
+      <span>or drag the ring</span>
+    </div>
+  </div>;
 }
 
 function SectionHead({ label, title, text, id }: { label: string; title: string; text?: string; id: string }) {
@@ -125,13 +138,13 @@ export default function App() {
       if (!down) return;
       const dx = e.clientX - lastX; lastX = e.clientX;
       scene.dragDistance += Math.abs(dx);
-      scene.dragVelocity = dx * 0.0025;
+      scene.dragDelta += dx;
     };
     const start = (e: PointerEvent) => {
       if ((e.target as HTMLElement).closest('a, button')) return;
-      down = true; lastX = e.clientX; scene.dragDistance = 0; el?.classList.add('is-dragging');
+      down = true; scene.dragging = true; lastX = e.clientX; scene.dragDistance = 0; el?.classList.add('is-dragging');
     };
-    const end = () => { down = false; el?.classList.remove('is-dragging'); };
+    const end = () => { down = false; scene.dragging = false; el?.classList.remove('is-dragging'); };
     window.addEventListener('pointermove', move);
     el?.addEventListener('pointerdown', start);
     window.addEventListener('pointerup', end);
@@ -234,7 +247,7 @@ export default function App() {
           </div>
           <div className="hero-side">
             <div className="hero-stat" data-intro><strong>€300k</strong><span>monthly sales across the TCG Plug stores I manage</span></div>
-            <HeroCaption />
+            <HeroCaption onOpen={openProject} />
           </div>
         </div>
       </section>
