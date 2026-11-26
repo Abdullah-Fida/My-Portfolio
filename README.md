@@ -30,4 +30,4 @@ All project text, links and services live in `src/content.ts`. The 3D ring's scr
 ## Design
 
 - Type: Satoshi (300 to 700) throughout
-- Colour: paper `#f3f2ee`, ink `#141413`, cobalt accent `#2f45d8`
+- Colour (dark theme): background `#111110`, text `#ecebe6`, periwinkle accent `#7b8cff`

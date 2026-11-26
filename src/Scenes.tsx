@@ -33,24 +33,25 @@ function Particles({ curve, count = 90 }: { curve: THREE.CatmullRomCurve3; count
   const mesh = useRef<THREE.InstancedMesh>(null);
   const seeds = useMemo(() => Array.from({ length: count }, (_, i) => ({ t: i / count, jitter: new THREE.Vector3((Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.18), size: 0.035 + Math.random() * 0.05 })), [count]);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  // Sample the path once; per-frame lookups become an array read instead of an arc-length search.
+  const lut = useMemo(() => curve.getSpacedPoints(600), [curve]);
+  const nearScale = useMemo(() => lut.map(p => 1 + Math.max(0, 1.4 - STATIONS.reduce((m, st) => Math.min(m, st.distanceTo(p)), 99)) * 1.6), [lut]);
   const progress = useRef(0);
   useFrame((_, delta) => {
     if (!mesh.current) return;
     progress.current += delta * (0.035 + Math.abs(sceneState.smoothVelocity) * 0.12);
     seeds.forEach((s, i) => {
-      const t = (s.t + progress.current) % 1;
-      curve.getPointAt(t, dummy.position);
-      dummy.position.add(s.jitter);
+      const k = Math.floor(((s.t + progress.current) % 1) * 600);
+      dummy.position.copy(lut[k]).add(s.jitter);
       // Particles swell as they pass through a station.
-      const near = STATIONS.reduce((m, st) => Math.min(m, st.distanceTo(dummy.position)), 99);
-      dummy.scale.setScalar(s.size * (1 + Math.max(0, 1.4 - near) * 1.6));
+      dummy.scale.setScalar(s.size * nearScale[k]);
       dummy.updateMatrix();
       mesh.current!.setMatrixAt(i, dummy.matrix);
     });
     mesh.current.instanceMatrix.needsUpdate = true;
   });
   return <instancedMesh ref={mesh} args={[undefined, undefined, count]}>
-    <sphereGeometry args={[1, 12, 12]} />
+    <sphereGeometry args={[1, 8, 8]} />
     <meshBasicMaterial color={SKY} toneMapped={false} />
   </instancedMesh>;
 }
@@ -93,7 +94,7 @@ function Pipeline() {
 }
 
 function Studio() {
-  return <Environment resolution={256}>
+  return <Environment resolution={128}>
     <Lightformer form="rect" intensity={2.2} position={[0, 5, -6]} scale={[12, 3, 1]} />
     <Lightformer form="rect" intensity={1.2} color={SKY} position={[-6, 1, 3]} scale={[4, 6, 1]} rotation-y={Math.PI / 2} />
     <Lightformer form="rect" intensity={0.9} position={[6, -1, 3]} scale={[4, 6, 1]} rotation-y={-Math.PI / 2} />
@@ -102,7 +103,7 @@ function Studio() {
 }
 
 export function FlowScene({ active }: { active: boolean }) {
-  return <Canvas frameloop={active ? 'always' : 'never'} dpr={[1, 1.75]} gl={{ antialias: true, alpha: true }} camera={{ position: [0, 0.3, 8.2], fov: 42 }}>
+  return <Canvas frameloop={active ? 'always' : 'never'} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }} camera={{ position: [0, 0.3, 8.2], fov: 42 }}>
     <ambientLight intensity={0.4} />
     <Studio />
     <Pipeline />
@@ -125,9 +126,9 @@ const SHAPES: { kind: 'knot' | 'box' | 'sphere' | 'torus' | 'ico' | 'capsule'; p
 function Shape({ kind, color }: { kind: (typeof SHAPES)[number]['kind']; color: string }) {
   const mat = <meshPhysicalMaterial color={color} metalness={color === '#1d1d1c' ? 0.6 : 0.1} roughness={0.18} clearcoat={1} clearcoatRoughness={0.1} />;
   switch (kind) {
-    case 'knot': return <mesh><torusKnotGeometry args={[1, 0.32, 220, 32]} />{mat}</mesh>;
+    case 'knot': return <mesh><torusKnotGeometry args={[1, 0.32, 160, 24]} />{mat}</mesh>;
     case 'box': return <RoundedBox args={[1.5, 1.5, 1.5]} radius={0.3} smoothness={6}>{mat}</RoundedBox>;
-    case 'sphere': return <mesh><sphereGeometry args={[1, 64, 64]} />{mat}</mesh>;
+    case 'sphere': return <mesh><sphereGeometry args={[1, 48, 48]} />{mat}</mesh>;
     case 'torus': return <mesh><torusGeometry args={[0.9, 0.36, 48, 96]} />{mat}</mesh>;
     case 'ico': return <mesh><icosahedronGeometry args={[1, 0]} />{mat}</mesh>;
     default: return <mesh><capsuleGeometry args={[0.55, 1.1, 16, 32]} />{mat}</mesh>;
@@ -155,7 +156,7 @@ function Cluster() {
 }
 
 export function ShapesScene({ active }: { active: boolean }) {
-  return <Canvas frameloop={active ? 'always' : 'never'} dpr={[1, 1.75]} gl={{ antialias: true, alpha: true }} camera={{ position: [0, 0, 10.5], fov: 40 }}>
+  return <Canvas frameloop={active ? 'always' : 'never'} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }} camera={{ position: [0, 0, 10.5], fov: 40 }}>
     <ambientLight intensity={0.3} />
     <directionalLight position={[4, 6, 5]} intensity={1.2} />
     <Studio />

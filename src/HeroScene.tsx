@@ -11,13 +11,13 @@ const PANEL_H = 2;
 const GAP = 0.5;
 const COUNT = heroPanels.length;
 const RADIUS = (COUNT * (PANEL_W + GAP)) / (Math.PI * 2);
-const BG = new THREE.Color('#f3f2ee');
-const ACCENT = new THREE.Color('#2f45d8');
+const BG = new THREE.Color('#111110');
+const ACCENT = new THREE.Color('#7b8cff');
 
 /** A plane bent onto the ring's cylinder, so raycasting matches what you see. */
 function useBentPlane() {
   return useMemo(() => {
-    const geo = new THREE.PlaneGeometry(PANEL_W, PANEL_H, 48, 8);
+    const geo = new THREE.PlaneGeometry(PANEL_W, PANEL_H, 32, 6);
     const pos = geo.attributes.position;
     for (let i = 0; i < pos.count; i++) {
       const theta = pos.getX(i) / RADIUS;
@@ -89,9 +89,9 @@ const fragment = /* glsl */ `
     col = mix(vec3(grey), col, mix(0.7, 1.0, uHover));
 
     float edge = smoothstep(-0.018, -0.004, d);
-    col = mix(col, mix(vec3(0.0), uAccent, uHover), edge * mix(0.12, 0.9, uHover));
+    col = mix(col, mix(vec3(1.0), uAccent, uHover), edge * mix(0.1, 0.9, uHover));
 
-    if (!gl_FrontFacing) col = mix(uBg, vec3(0.72), 0.3);
+    if (!gl_FrontFacing) col = mix(uBg, vec3(0.2), 0.35);
 
     col = mix(col, uBg, smoothstep(uFar - 8.0, uFar, vDepth) * 0.88);
     col = mix(uAccent, col, smoothstep(0.0, 0.6, uIntro));
@@ -111,7 +111,8 @@ function Panel({ index, image, project, label, geometry, onOpen }: {
 
   const uniforms = useMemo(() => {
     texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 8;
+    texture.anisotropy = 4;
+    texture.generateMipmaps = true;
     const img = texture.image as { width: number; height: number };
     return {
       uMap: { value: texture },
@@ -135,7 +136,7 @@ function Panel({ index, image, project, label, geometry, onOpen }: {
     u.uHover.value = hover.current;
     u.uVelocity.value = sceneState.smoothVelocity;
     u.uTime.value = t;
-    u.uIntro.value = THREE.MathUtils.smootherstep(t, 0.2 + index * 0.09, 1.5 + index * 0.09);
+    u.uIntro.value = THREE.MathUtils.smootherstep(t, index * 0.06, 0.9 + index * 0.06);
     u.uFar.value = state.camera.position.z + RADIUS;
   });
 
@@ -178,9 +179,9 @@ function FloorShadow() {
     c.width = c.height = 256;
     const g = c.getContext('2d')!;
     const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-    grad.addColorStop(0, 'rgba(20,20,19,0.22)');
-    grad.addColorStop(0.55, 'rgba(20,20,19,0.08)');
-    grad.addColorStop(1, 'rgba(20,20,19,0)');
+    grad.addColorStop(0, 'rgba(123,140,255,0.16)');
+    grad.addColorStop(0.55, 'rgba(123,140,255,0.05)');
+    grad.addColorStop(1, 'rgba(123,140,255,0)');
     g.fillStyle = grad;
     g.fillRect(0, 0, 256, 256);
     return new THREE.CanvasTexture(c);
@@ -203,7 +204,7 @@ function Ring({ onOpen, motion }: { onOpen: (id: string) => void; motion: boolea
     const t = state.clock.elapsedTime;
     s.smoothVelocity = THREE.MathUtils.damp(s.smoothVelocity, THREE.MathUtils.clamp(s.velocity / 50, -1, 1), 4, delta);
     // Intro spin that settles into a slow drift.
-    const introBoost = motion ? Math.max(0, 1.6 - t) * 1.2 : 0;
+    const introBoost = motion ? Math.max(0, 1.1 - t) * 1.2 : 0;
     s.rotation += delta * ((motion ? 0.06 : 0.012) + introBoost) + s.smoothVelocity * delta * 0.9 + s.dragVelocity;
     s.dragVelocity *= Math.pow(0.03, delta);
     if (spin.current) spin.current.rotation.y = s.rotation;
@@ -242,7 +243,7 @@ export default function HeroScene({ onOpen, onReady, active, motion }: {
   return (
     <Canvas
       frameloop={active ? 'always' : 'never'}
-      dpr={[1, 1.75]}
+      dpr={[1, 1.5]}
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
       camera={{ position: [0, 1.3, 15], fov: 32, near: 0.1, far: 60 }}
       onPointerMissed={() => setCursor(null)}

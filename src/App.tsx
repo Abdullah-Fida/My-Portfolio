@@ -16,7 +16,8 @@ import activity from './data/github-activity.json';
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
-const HeroScene = lazy(() => import('./HeroScene'));
+const heroSceneImport = import('./HeroScene'); // start downloading the 3D code immediately
+const HeroScene = lazy(() => heroSceneImport);
 const FlowScene = lazy(() => import('./Scenes').then(m => ({ default: m.FlowScene })));
 const ShapesScene = lazy(() => import('./Scenes').then(m => ({ default: m.ShapesScene })));
 const reducedMotion = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -168,8 +169,8 @@ export default function App() {
       if (motion) {
         gsap.utils.toArray<HTMLElement>('.case-media').forEach(media => {
           const img = media.querySelector('img');
-          gsap.fromTo(media, { clipPath: 'inset(6% 5% 6% 5% round 22px)' }, { clipPath: 'inset(0% 0% 0% 0% round 14px)', ease: 'none', scrollTrigger: { trigger: media, start: 'top 95%', end: 'top 35%', scrub: true } });
-          if (img) gsap.fromTo(img, { scale: 1.12, yPercent: -3 }, { scale: 1, yPercent: 3, ease: 'none', scrollTrigger: { trigger: media, start: 'top bottom', end: 'bottom top', scrub: true } });
+          gsap.fromTo(media, { scale: 0.94, opacity: 0.4 }, { scale: 1, opacity: 1, ease: 'none', scrollTrigger: { trigger: media, start: 'top 95%', end: 'top 45%', scrub: 0.6 } });
+          if (img) gsap.fromTo(img, { scale: 1.1 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: media, start: 'top bottom', end: 'bottom top', scrub: 0.6 } });
         });
       }
 
