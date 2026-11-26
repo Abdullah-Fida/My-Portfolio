@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-11-26T09:21:29.801Z",
+  "projects": [
+    {
+      "slug": "ahsantechlink",
+      "url": "https://ahsantechlink.com",
+      "capturedAt": "2026-11-26T09:20:31.385Z",
+      "desktop": "/assets/previews/ahsantechlink-desktop.jpg",
+      "mobile": "/assets/previews/ahsantechlink-mobile.jpg",
+      "embedAllowed": false,
+      "notes": [
+        "Embedding blocked by response policy (X-Frame-Options: DENY)."
+      ],
+      "finalUrl": "https://ahsantechlink.com/",
+      "status": 200,
+      "xFrameOptions": "DENY",
+      "frameAncestors": "frame-ancestors 'none'",
+      "title": "CCTV, Network & Fibre Testers in Pakistan | Ahsan Techlink"
+    },
+    {
+      "slug": "ikonnect",
+      "url": "https://www.ikonnectservice.com",
+      "capturedAt": "2026-11-26T09:21:14.530Z",
+      "desktop": "/assets/previews/ikonnect-desktop.jpg",
+      "mobile": "/assets/previews/ikonnect-mobile.jpg",
+      "embedAllowed": true,
+      "notes": [
+        "Verified real remote content rendered in an iframe on localhost.",
+        "Optional analytics cookies declined using the site’s own control before desktop/mobile captures."
+      ],
+      "finalUrl": "https://www.ikonnectservice.com/",
+      "status": 200,
+      "xFrameOptions": null,
+      "frameAncestors": null,
+      "title": "Ikonnect Service - Data Engineering, AI Agents & Growth Marketing"
+    },
+    {
+      "slug": "pressvane",
+      "url": "https://pressvane.com",
+      "capturedAt": "2026-11-26T09:20:54.320Z",
+      "desktop": "/assets/previews/pressvane-desktop.jpg",
+      "mobile": "/assets/previews/pressvane-mobile.jpg",
+      "embedAllowed": false,
+      "notes": [
+        "Embedding blocked by response policy (X-Frame-Options: SAMEORIGIN)."
+      ],
+      "finalUrl": "https://pressvane.com/",
+      "status": 200,
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null,
+      "title": "PressVane — World, Crypto, Tech & Business News"
+    },
+    {
+      "slug": "tcg-nl",
+      "url": "https://www.thetcgplug.nl",
+      "capturedAt": "2026-11-26T09:19:51.686Z",
+      "desktop": "/assets/previews/tcg-nl-desktop.jpg",
+      "mobile": "/assets/previews/tcg-nl-mobile.jpg",
+      "embedAllowed": false,
+      "notes": [
+        "Embedding blocked by response policy (X-Frame-Options: DENY)."
+      ],
+      "finalUrl": "https://www.thetcgplug.nl/",
+      "status": 200,
+      "xFrameOptions": "DENY",
+      "frameAncestors": "frame-ancestors 'none'",
+      "title": "The TCG Plug | Pokémon kaarten kopen, Booster Boxes & ETB"
+    },
+    {
+      "slug": "tcg-shop",
+      "url": "https://thetcgplug.shop",
+      "capturedAt": "2026-11-26T09:19:51.694Z",
+      "desktop": "/assets/previews/tcg-shop-desktop.jpg",
+      "mobile": "/assets/previews/tcg-shop-mobile.jpg",
+      "embedAllowed": false,
+      "notes": [
+        "Embedding blocked by response policy (X-Frame-Options: DENY)."
+      ],
+      "finalUrl": "https://thetcgplug.shop/",
+      "status": 200,
+      "xFrameOptions": "DENY",
+      "frameAncestors": "frame-ancestors 'none'",
+      "title": "Pokémon kaarten kopen | Booster Boxes & Live Breaks | The TCG Plug"
+    },
+    {
+      "slug": "wovenaa",
+      "url": "https://wovenaa.com",
+      "capturedAt": "2026-11-26T09:20:31.370Z",
+      "desktop": "/assets/previews/wovenaa-desktop.jpg",
+      "mobile": "/assets/previews/wovenaa-mobile.jpg",
+      "embedAllowed": false,
+      "notes": [
+        "Embedding blocked by response policy (X-Frame-Options: DENY)."
+      ],
+      "finalUrl": "https://wovenaa.com/",
+      "status": 200,
+      "xFrameOptions": "DENY",
+      "frameAncestors": "frame-ancestors 'none'",
+      "title": "Wovenaa"
+    },
+    {
+      "slug": "zonyx",
+      "url": "https://www.zonyxautoinsurance.com",
+      "capturedAt": "2026-11-26T09:20:54.329Z",
+      "desktop": "/assets/previews/zonyx-desktop.jpg",
+      "mobile": "/assets/previews/zonyx-mobile.jpg",
+      "embedAllowed": true,
+      "notes": [
+        "Verified real remote content rendered in an iframe on localhost."
+      ],
+      "finalUrl": "https://www.zonyxautoinsurance.com/",
+      "status": 200,
+      "xFrameOptions": null,
+      "frameAncestors": null,
+      "title": "Zonyx Auto Insurance | Car, Bike & Van Cover"
+    }
+  ]
+}
